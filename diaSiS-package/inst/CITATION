@@ -1,0 +1,16 @@
+bibentry(
+  bibtype  = "Article",
+  title    = "Combining data independent acquisition with spike-in SILAC (DIA-SiS) improves proteome coverage and quantification",
+  author   =  c(person(c("Anna", "Sophie"), "Welter"),
+                    person("Maximilian", "Gerwien"), 
+                    person("Robert", "Kerridge"), 
+                    person(c("Keziban", "Merve"), "Alp"), 
+                    person("Philipp", "Mertins"), 
+                    person("Matthias", "Selbach")),
+  journal  = "BioRxiv",
+  year     = "2024",
+  volume   = "",
+  number   = "",
+  pages    = "",
+  doi      = "10.1101/2024.05.03.592381" 
+)
