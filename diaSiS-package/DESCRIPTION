@@ -1,7 +1,7 @@
 Package: diaSiS
 Type: Package
 Title: DIA Spike-in-SILAC calculations
-Version: 1.0
+Version: 1.0.1
 RoxygenNote: 7.3.1
 Encoding: UTF-8
 Description: Contains functions to calculate DIA Spike-in-SILAC (DIA-SiS) protein abundances and across sample ratios based on DIA-NN 1.8.1 and 1.9 outputs.
