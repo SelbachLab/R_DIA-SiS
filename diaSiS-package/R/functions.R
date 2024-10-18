@@ -19,10 +19,10 @@ clean_DIANN <- function(file, contaminants = "CON"){
       # create a precursor ID that only contains sequence and charge but not SILAC state
       mutate(Stripped.Sequence.Charge = str_remove_all(Precursor.Id, "\\(SILAC-[KR]-[LHM]\\)")) -> out
   }else{
-  read_parquet(file) %>%
-    filter(Precursor.Charge > 1, !str_detect(Protein.Group, contaminants)) %>%
-    # create a precursor ID that only contains sequence and charge but not SILAC state
-    mutate(Stripped.Sequence.Charge = str_remove_all(Precursor.Id, "\\(SILAC-[KR]-[LHM]\\)")) -> out
+    read_parquet(file) %>%
+      filter(Precursor.Charge > 1, !str_detect(Protein.Group, contaminants)) %>%
+      # create a precursor ID that only contains sequence and charge but not SILAC state
+      mutate(Stripped.Sequence.Charge = str_remove_all(Precursor.Id, "\\(SILAC-[KR]-[LHM]\\)")) -> out
   }
   return(out)
 }
@@ -225,7 +225,6 @@ filter_DIANN <- function(data, referenceChannel = "H", numberChannels = 2, MBR =
 #' @param globalReference One of "L", "M", "H". Defines which channel should be used as a global reference to build normalized intensities. Should be the channel that was experimentally spiked-in.
 #' @param PGcalculation Selects columns to build ratios on. Best variant should be "standard" (using Ms1.Translated and Precursor.Translated). For single cell data use "sc" (using both independent of completness). Other options are only use "Ms1.Translated" or only use "Precursor.Translated", this is not recommendet.
 #' @param globalCalculation which reference proteins shall be used for the calculation of the global reference? All Heavys passing the basic filtering or all heavys having a corresponding light? 
-#' @param generatePGmatrix If set to TRUE an additional output is generated that is similar to pg_matrix from DIA-NN (wide format by Run), currently only works for classic DIA-SiS (L + spike-in, no tripple SILAC). Default is FALSE. This table cannot be used with the other functions of this package. 
 #' @param version DIA-NN version used to analyse the raw data. Default and recommended is 1.8.1. Set to 1.9 for higher versions. Recommended DIA-NN settings for 1.8.2 beta 22 or higher are QuantUMS: legacy; turn off MBR; and --channel-spec-norm
 #' 
 #' @returns a tibble containing following columns: Run, Protein.Group, Strupped.Sequence.Charge, Intensity.Type (Containing "Ms1.Translated" and "Precursor.Translated"), L, M, H (if existing; contain the corresponding precursor intensities of that channel given in Intensity.Type), N.Precursors (Number of precursors defining a protein, corresponding to the respective column in filterSet that was selected in useFilter), LvsH/MvsH/LvsM (Log10 Precursor ratios of the Channels), LvsH.PG/MvsH.PG/LvsM.PG (log10 Protein.Group ratios based on the median log10 precursor ratios of both intensity types per protein & run) and Global.Log10.Reference.Intensity (Median log10 precursor intensity of the reference/spike-in channel per protein, acts as a normalization factor to calculate Abundance in the other channels. To calculate protein abundance in other channels use eg. LvsH.PG + Global.Log10.Reference.Intensity). Also contains column with information of applied filter sets and global reference used.
@@ -253,7 +252,7 @@ filter_DIANN <- function(data, referenceChannel = "H", numberChannels = 2, MBR =
 #' @export
 calculate_SILAC_ratios <- function(data, filterSet, useFilter = c("requantify", "standard"), 
                                    precursorPerProtein = 1, globalReference = c("L", "M", "H"), globalCalculation = c("all", "set"),
-                                   PGcalculation = c("standard", "any", "Ms1.Translated", "Precursor.Translated", "sc"), generatePGmatrix = F, version = "1.8.1"){
+                                   PGcalculation = c("standard", "any", "Ms1.Translated", "Precursor.Translated", "sc"), version = "1.8.1"){
   
   if(useFilter == "requantify"){
     useFilter <- "N.Total.Precursors.Per.Protein.Standard"
@@ -442,20 +441,96 @@ calculate_SILAC_ratios <- function(data, filterSet, useFilter = c("requantify", 
     mutate(across(contains(".PG"), .fns=~.+Global.Log10.Reference.Protein.Intensity, .names = "{.col}.Intensity")) -> PG.Ratios
   
   
-  if(generatePGmatrix == T){
-    PG.Ratios %>% 
-      ungroup() %>% 
-      select(Run, Protein.Group, contains(".PG.Intensity")) %>% 
-      distinct() %>% 
-      pivot_wider(id_cols = everything(), names_from = Run, values_from = contains(".PG.Intensity"), names_sep = "-") -> PG.Intensities
-    
-    PG.Ratios <- list("ratios_all_info" = PG.Ratios, "pg_matrix" = PG.Intensities)
-  }
-  
-  
   return(PG.Ratios)
 }
 
+
+
+#' Generate human readable PG matrix outputs
+#' 
+#' Generates wide table versions of protein abundance and quality measurements (number of unique peptides in total as well as per run that do pass the filter). The output of this function is no input for any other function of this pipeline but to enhance easier compatibility with scripts of other users.
+#' 
+#' @param PGdata Output from calculate_SILAC_ratios
+#' @param filterSet Output from filter_DIANN
+#' 
+#' @returns Returns Two wide tables: a) pg_matrix: a table with the same format as pg_matrix.tsv output from DIA-NN containing the protein abundances per run and b) peptide_counts: a wide table version of the filter_DIANN output to allow for easily readable quality control. Contains columns Protein.Group, Unique.Peptides (unique stripped peptide sequences without charge state) in all runs and L;M;H peptide counts per run. Differently from the output of filter_DIANN, this dataframe contains peptides, not precursors (no charge state).
+#' @examples 
+#' # for bulk
+#' data <- clean_DIANN(data) # read in the data
+#' filter_frame <- filter_DIANN(data) # generate filter data frame
+#' 
+#' silac_ratios <- calculate_SILAC_ratios(data = data, filterSet = filter_frame, useFilter = "requantify", globalReference = "H", 
+#' globalCalculation = "all", PGcalculation = "standard")
+#' 
+#' pg_matrix <- generate_pgMatrix(silac_ratios, filter_frame)
+#' 
+#' @import dplyr
+#' @export
+generate_pgMatrix <- function(PGdata, filterSet){
+  
+  PGdata %>% 
+    ungroup() %>% 
+    select(Run, Protein.Group, contains(".PG.Intensity")) %>% 
+    distinct() %>% 
+    pivot_wider(id_cols = everything(), names_from = Run, values_from = contains(".PG.Intensity"), names_sep = "-", names_prefix = "Abundance.") -> PG.Intensities
+  
+  
+  # previous counts and stuff are based on precursors, not peptides. Need to count and merge differently here
+  filterSet %>% 
+    mutate(Stripped.Sequence = str_remove_all(str_remove_all(Stripped.Sequence.Charge, "\\d"), "\\(UniMod:\\)")) -> filterSet
+  
+  filterSet %>% 
+    ungroup %>% 
+    filter(str_detect(Channels.Passed.Standard.Filter, "[HLM]")) %>% 
+    select(Protein.Group, Stripped.Sequence) %>% 
+    distinct() %>% 
+    group_by(Protein.Group) %>% 
+    summarise(Unique.Peptides = n()) %>% 
+    full_join(filterSet) -> filterSet
+  
+  filterSet %>% 
+    group_by(Run, Protein.Group) %>% 
+    mutate(Peptide.Count.Run.L = str_count(Channels.Passed.Standard.Filter, "L"), 
+           Peptide.Count.Run.M = str_count(Channels.Passed.Standard.Filter, "M"), 
+           Peptide.Count.Run.H = str_count(Channels.Passed.Standard.Filter, "H")) %>% 
+    select(-Stripped.Sequence.Charge, -Channels.Passed.Standard.Filter) %>%
+    # removes all duplicated rows (keeps first hit)
+    filter(!duplicated(Stripped.Sequence)) -> filterSet.Single
+  
+  # check whether in the thrown out columns has been some additional information
+  filterSet %>% 
+    group_by(Run, Protein.Group) %>% 
+    mutate(Peptide.Count.Run.L = str_count(Channels.Passed.Standard.Filter, "L"), 
+           Peptide.Count.Run.M = str_count(Channels.Passed.Standard.Filter, "M"), 
+           Peptide.Count.Run.H = str_count(Channels.Passed.Standard.Filter, "H")) %>% 
+    select(-Stripped.Sequence.Charge, -Channels.Passed.Standard.Filter) %>%
+    # takes all rows after the first hit
+    filter(duplicated(Stripped.Sequence)) -> filterSet.Doublets
+  
+  # if in any of the double cases (different charged peptides) a LMH was detected but not in the single cases, set 0 to 1 
+  filterSet.Single %>% 
+    full_join(filterSet.Doublets, by = c("Protein.Group", "Run", "Stripped.Sequence", "Unique.Peptides", 
+                                         "Reference.Channel", "N.Precursors.With.Complete.SILAC.Channels.Per.Protein.Standard", 
+                                         "N.Total.Precursors.Per.Protein.Standard"))  %>%
+    mutate(Peptide.Count.Run.L.x = ifelse(Peptide.Count.Run.L.x == 0 & Peptide.Count.Run.L.y == 1, 1, Peptide.Count.Run.L.x), 
+           Peptide.Count.Run.M.x = ifelse(Peptide.Count.Run.M.x == 0 & Peptide.Count.Run.M.y == 1, 1, Peptide.Count.Run.M.x), 
+           Peptide.Count.Run.H.x = ifelse(Peptide.Count.Run.H.x == 0 & Peptide.Count.Run.H.y == 1, 1, Peptide.Count.Run.H.x)) %>% 
+    ungroup %>% 
+    select(Protein.Group, Run, Unique.Peptides, Stripped.Sequence, Peptide.Count.Run.L.x, Peptide.Count.Run.M.x, Peptide.Count.Run.H.x) %>% 
+    distinct() %>% 
+    group_by(Run, Protein.Group, Unique.Peptides) %>% 
+    summarise(Peptide.Count.Run.L = sum(Peptide.Count.Run.L.x, na.rm = T), 
+              Peptide.Count.Run.M = sum(Peptide.Count.Run.M.x, na.rm = T), 
+              Peptide.Count.Run.H = sum(Peptide.Count.Run.H.x, na.rm = T)) %>% 
+    unite(Peptide.Count, Peptide.Count.Run.L, Peptide.Count.Run.M, Peptide.Count.Run.H, sep = ";" ) %>% 
+    pivot_wider(id_cols = everything(), names_from = Run, values_from = Peptide.Count, names_prefix = "Peptide.Count.") -> peptide_counts
+  
+  
+  
+  out <- list("pg_matrix" = PG.Intensities, "peptide_counts" = peptide_counts)
+  return(out)
+  
+}
 
 
 #' Sanity Check Requantify across sample ratios

@@ -12,7 +12,6 @@ calculate_SILAC_ratios(
   globalReference = c("L", "M", "H"),
   globalCalculation = c("all", "set"),
   PGcalculation = c("standard", "any", "Ms1.Translated", "Precursor.Translated", "sc"),
-  generatePGmatrix = F,
   version = "1.8.1"
 )
 }
@@ -30,8 +29,6 @@ calculate_SILAC_ratios(
 \item{globalCalculation}{which reference proteins shall be used for the calculation of the global reference? All Heavys passing the basic filtering or all heavys having a corresponding light?}
 
 \item{PGcalculation}{Selects columns to build ratios on. Best variant should be "standard" (using Ms1.Translated and Precursor.Translated). For single cell data use "sc" (using both independent of completness). Other options are only use "Ms1.Translated" or only use "Precursor.Translated", this is not recommendet.}
-
-\item{generatePGmatrix}{If set to TRUE an additional output is generated that is similar to pg_matrix from DIA-NN (wide format by Run), currently only works for classic DIA-SiS (L + spike-in, no tripple SILAC). Default is FALSE. This table cannot be used with the other functions of this package.}
 
 \item{version}{DIA-NN version used to analyse the raw data. Default and recommended is 1.8.1. Set to 1.9 for higher versions. Recommended DIA-NN settings for 1.8.2 beta 22 or higher are QuantUMS: legacy; turn off MBR; and --channel-spec-norm}
 }
