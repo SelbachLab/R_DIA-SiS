@@ -7,7 +7,7 @@ Installation via
 
 library(devtools)
 
-devtools::install_github("SelbachLab/R_DIA-SiS/tree/main/diaSiS-package")
+devtools::install_github("SelbachLab/R_DIA-SiS/diaSiS-package")
 
 
 Requires additional packages: readr, dplyr, arrow, stringr
