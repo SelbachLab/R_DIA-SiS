@@ -27,6 +27,7 @@ clean_DIANN <- function(file, contaminants = "CON"){
     }
   }else{
     file %>% 
+      as_tibble() %>% 
       filter(Precursor.Charge > 1, !str_detect(Protein.Group, contaminants)) %>%
       # create a precursor ID that only contains sequence and charge but not SILAC state
       mutate(Stripped.Sequence.Charge = str_remove_all(Precursor.Id, "\\(SILAC-[KR]-[LHM]\\)")) -> out
