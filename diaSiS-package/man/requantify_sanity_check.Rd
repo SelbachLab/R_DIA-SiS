@@ -29,5 +29,4 @@ silac_ratios <- calculate_SILAC_ratios(data = data, filterSet = filter_frame, us
 globalCalculation = "all", PGcalculation = "standard") # calculate SILAC abundances
 
 sane_PGs <- requantify_sanity_check(filterSet = filter_frame) # sanity check requantify combinations (without metadata)
- @import dplyr
 }

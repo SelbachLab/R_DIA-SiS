@@ -57,162 +57,89 @@ clean_DIANN <- function(file, contaminants = "CON"){
 #' @import dplyr
 #' @export filter_DIANN
 #' 
-filter_DIANN <- function(data, referenceChannel = "H", numberChannels = 2, MBR = "off", CalcCols = "both", ChannelFilt = NA, version = "1.8.1"){
+filter_DIANN <- function(data, referenceChannel = "H", numberChannels = 2, MBR = "off", CalcCols = "both", ChannelFilt = NA, version = "1.8.1") {
   
-  # create a precursor ID that only contains sequence and charge but not SILAC state, neccessary if using raw DIANN output
-  if(!"Stripped.Sequence.Charge" %in% colnames(data)){
-    data %>% 
-      mutate(Stripped.Sequence.Charge = str_remove_all(Precursor.Id, "\\(SILAC-[KR]-[LHM]\\)")) -> data 
+  # Define threshold and default for ChannelFilt
+  ChannelFilt <- ifelse(is.na(ChannelFilt), 0.03, ChannelFilt)
+  filterChannelTh <- ifelse(numberChannels == 1, 0.01, ChannelFilt)
+  
+  # Set filter columns based on number of channels and MBR status
+  filterChannel <- ifelse(numberChannels == 1, ifelse(MBR == "off", "Global.Q.Value", "Lib.Q.Value"), "Channel.Q.Value")
+  filterPGglobal <- ifelse(MBR == "off", "Global.PG.Q.Value", "Lib.PG.Q.Value")
+  searchChannel <- ifelse(numberChannels == 1, ".", "-[LMH]")
+  
+  # Set quantification columns based on CalcCols and version
+  useCols <- if (CalcCols == "both" || CalcCols == "any") {
+    if (version == "1.8.1") c("Ms1.Translated", "Precursor.Translated") else "Precursor.Normalised"
+  } else {
+    CalcCols
   }
   
-  if(is.na(ChannelFilt)){
-    ChannelFilt <- 0.03
-  }
-  
-  # extra options for LFQ filtering
-  if(numberChannels == 1){
-    if(MBR == "off"){
-      filterChannel <- "Global.Q.Value"
-      filterPGglobal <- "Global.PG.Q.Value"
-    }else{
-      filterChannel <- "Lib.Q.Value"
-      filterPGglobal <- "Lib.PG.Q.Value"
-    }
+  # Create precursor filter list with standardized filtering
+  if (referenceChannel %in% c("H", "L", "M")) {
     
-    filterChannelTh <- 0.01
+    # Set reference channel pattern based on number of channels
+    referenceChannelPattern <- if (numberChannels == 1) ".*" else paste0("-", referenceChannel)
     
-    searchChannel <- "."  
+    # Filter data based on conditions
+    data %>%
+      filter(
+        str_detect(Modified.Sequence, referenceChannelPattern),
+        (!!sym(filterPGglobal)) < 0.01,
+        (!!sym(filterChannel)) < filterChannelTh
+      ) %>%
+      filter_at(vars(useCols), if (CalcCols != "any") all_vars(!is.na(.) & . > 0) else any_vars(!is.na(.) & . > 0)) %>%
+      group_by(Run, Protein.Group) %>%
+      mutate(Reference.Channel = referenceChannelPattern) %>%
+      select(Run, Stripped.Sequence.Charge, Protein.Group, Reference.Channel) -> filterSet
     
-    
-  }else{
-    filterChannel <- "Channel.Q.Value"
-    filterChannelTh <- ChannelFilt
-    filterPGglobal <- "Global.PG.Q.Value"
-    searchChannel <- "-[LMH]"
-  }
-  
-  if(CalcCols %in% c("both", "any")){
-    if(version == "1.8.1"){
-      useCols <- c("Ms1.Translated", "Precursor.Translated")
-    }else{
-      useCols <- "Precursor.Normalised"
-    }
-    
-  }
-  
-  
-  # create precursor Requantify filter lists 
-  if(referenceChannel %in% c("H", "L", "M")){
-    
-    
-    
-    if(numberChannels == 1){
-      referenceChannel <- ".*"
-    }else{
-      referenceChannel <- paste("-", referenceChannel, sep = "")
-    }
-    if(CalcCols != "any"){
-      data %>% 
-        # filter whether referenceChannel passes standard q value filters
-        filter(str_detect(Modified.Sequence, referenceChannel), 
-               (!!sym(filterPGglobal)) < 0.01 &
-                 (!!sym(filterChannel)) < filterChannelTh) %>%
-        # remove NA or 0 valyes in quantification
-        # filter(!is.na(Ms1.Translated) , !is.na(Precursor.Translated)) %>% 
-        # filter(Ms1.Translated > 0 , Precursor.Translated > 0) %>%
-        filter_at(vars(useCols), all_vars(!is.na(.))) %>%
-        filter_at(vars(useCols), all_vars(. > 0)) %>% 
-        
-        # generate information of how many precursors are identified per protein
-        group_by(Run, Protein.Group) %>% 
-        # add which channel was used for filtering
-        add_column(Reference.Channel = referenceChannel) %>% 
-        select(Run, Stripped.Sequence.Charge, Protein.Group, Reference.Channel) -> filterSet
-    }else{
-      data %>% 
-        # filter whether referenceChannel passes standard q value filters
-        filter(str_detect(Modified.Sequence, referenceChannel), 
-               (!!sym(filterPGglobal)) < 0.01 &
-                 (!!sym(filterChannel)) < filterChannelTh) %>%
-        # remove NA or 0 valyes in quantification
-        # filter(!is.na(Ms1.Translated) , !is.na(Precursor.Translated)) %>% 
-        # filter(Ms1.Translated > 0 , Precursor.Translated > 0) %>%
-        filter_at(vars(useCols), any_vars(!is.na(.))) %>%
-        filter_at(vars(useCols), any_vars(. > 0)) %>% 
-        
-        # generate information of how many precursors are identified per protein
-        group_by(Run, Protein.Group) %>% 
-        # add which channel was used for filtering
-        add_column(Reference.Channel = referenceChannel) %>% 
-        select(Run, Stripped.Sequence.Charge, Protein.Group, Reference.Channel) -> filterSet
-    }
-    
-    
-  }else{
+  } else {
     stop('Wrong referenceChannel parameter. Must be "H", "L", "M" or "highest"')
   }
   
-  if(length(useCols) == 2) {
-    data %>% 
-      select(Run, Protein.Group, Precursor.Id, Stripped.Sequence.Charge, (!!sym(filterPGglobal)), (!!sym(filterChannel)), (!!sym(useCols[1])), (!!sym(useCols[2]))) -> data
-  }else{
-    data %>% 
-      select(Run, Protein.Group, Precursor.Id, Stripped.Sequence.Charge, (!!sym(filterPGglobal)), (!!sym(filterChannel)), (!!sym(useCols))) -> data
-  }
+  # Extract relevant columns from data based on useCols
+  data %>%
+    select(Run, Protein.Group, Precursor.Id, Stripped.Sequence.Charge, 
+           !!sym(filterPGglobal), !!sym(filterChannel), one_of(useCols)) -> data
   
-  if(CalcCols != "any"){
-    # get information about how many CHannel per Precursor would have passed standard filters
-    
-    data %>% 
-      inner_join(filterSet) %>% 
-      filter((!!sym(filterPGglobal)) < 0.01 & (!!sym(filterChannel)) < filterChannelTh) %>% 
-      filter_at(vars(useCols), all_vars(!is.na(.))) %>% 
-      filter_at(vars(useCols), all_vars(. > 0)) %>% 
-      group_by(Run, Stripped.Sequence.Charge, Protein.Group, Reference.Channel) %>% 
-      # extract Channel information from Precursor.Id and make it to a string (groupwise)
-      summarize(Channels.Passed.Standard.Filter = toString(str_extract(Precursor.Id, searchChannel))) -> filterSet
-    
-    
-    
-  }else{
-    # get information about how many CHannel per Precursor would have passed standard filters
-    data %>% 
-      inner_join(filterSet) %>% 
-      filter((!!sym(filterPGglobal)) < 0.01 & (!!sym(filterChannel)) < filterChannelTh) %>% 
-      filter_at(vars(useCols), any_vars(!is.na(.))) %>% 
-      filter_at(vars(useCols), any_vars(. > 0)) %>% 
-      group_by(Run, Stripped.Sequence.Charge, Protein.Group, Reference.Channel) %>% 
-      # extract Channel information from Precursor.Id and make it to a string (groupwise)
-      summarize(Channels.Passed.Standard.Filter = toString(str_extract(Precursor.Id, searchChannel))) -> filterSet
-    
-    
-    
-  }
+  # Summarize filtered channels based on CalcCols setting
+  data %>%
+    inner_join(filterSet) %>%
+    filter(
+      (!!sym(filterPGglobal)) < 0.01,
+      (!!sym(filterChannel)) < filterChannelTh
+    ) %>%
+    filter_at(vars(useCols), if (CalcCols != "any") all_vars(!is.na(.) & . > 0) else any_vars(!is.na(.) & . > 0)) %>%
+    group_by(Run, Stripped.Sequence.Charge, Protein.Group, Reference.Channel) %>%
+    summarize(Channels.Passed.Standard.Filter = toString(str_extract(Precursor.Id, searchChannel)), .groups = "drop") -> filterSet
   
+  # Flagging and summarizing for protein level
+  filterSet %>%
+    group_by(Run, Protein.Group) %>%
+    summarize(N.Total.Precursors.Per.Protein.Standard = n(), .groups = "drop") -> protein_summary
   
+  filterSet %>%
+    filter(str_count(Channels.Passed.Standard.Filter, str_remove(searchChannel, "-")) >= numberChannels) %>%
+    group_by(Run, Protein.Group) %>%
+    summarize(N.Precursors.With.Complete.SILAC.Channels.Per.Protein.Standard = n(), .groups = "drop") -> complete_channels_summary
   
-  # flagging on protein level
-  # flag how many precursors define one protein group 
-  # state the number of total precursors (N.Channels.Passed > 0), and complete cases (= numberChannels) using
-  filterSet %>% 
-    group_by(Run, Protein.Group) %>% 
-    summarize(N.Total.Precursors.Per.Protein.Standard = n()) %>%  
-    full_join(filterSet %>% 
-                # count HLM, complete cases match number of channels
-                filter(str_count(Channels.Passed.Standard.Filter, str_remove(searchChannel, "-")) >= numberChannels) %>% 
-                group_by(Run, Protein.Group) %>% 
-                summarize(N.Precursors.With.Complete.SILAC.Channels.Per.Protein.Standard = n())) %>% 
-    full_join(filterSet) %>% 
-    select(Run, Protein.Group, Stripped.Sequence.Charge, Reference.Channel, Channels.Passed.Standard.Filter, N.Total.Precursors.Per.Protein.Standard, N.Precursors.With.Complete.SILAC.Channels.Per.Protein.Standard) -> filterSet
+  # Combine summaries into final filterSet output
+  filterSet %>%
+    left_join(protein_summary, by = c("Run", "Protein.Group")) %>%
+    left_join(complete_channels_summary, by = c("Run", "Protein.Group")) %>%
+    select(Run, Protein.Group, Stripped.Sequence.Charge, Reference.Channel, 
+           Channels.Passed.Standard.Filter, N.Total.Precursors.Per.Protein.Standard, 
+           N.Precursors.With.Complete.SILAC.Channels.Per.Protein.Standard) -> filterSet
   
-  if(numberChannels == 1){
-    filterSet %>% 
+  # Return only relevant columns if single-channel mode
+  if (numberChannels == 1) {
+    filterSet %>%
       select(Run, Protein.Group, Stripped.Sequence.Charge, Reference.Channel, N.Total.Precursors.Per.Protein.Standard) -> filterSet
   }
   
   return(filterSet)
-  
 }
+
 
 #' Calculation of SILAC ratios
 #' 
@@ -551,7 +478,7 @@ generate_pgMatrix <- function(PGdata, filterSet){
 #' globalCalculation = "all", PGcalculation = "standard") # calculate SILAC abundances
 #' 
 #' sane_PGs <- requantify_sanity_check(filterSet = filter_frame) # sanity check requantify combinations (without metadata)
-#'  @import dplyr
+#' @import dplyr
 #' @export
 requantify_sanity_check <- function(filterSet, metadata = NULL, precursorPerProtein = 1){
   
@@ -659,7 +586,7 @@ requantify_sanity_check <- function(filterSet, metadata = NULL, precursorPerProt
 #' silac_ratios <- calculate_SILAC_ratios(data = data, filterSet = filter_frame, useFilter = "standard", globalReference = "H", 
 #' globalCalculation = "all", PGcalculation = "standard") # calculate SILAC abundances
 #' data_across <- calculate_across_sample_ratios(data = silac_ratios)
-#'  @import dplyr
+#' @import dplyr
 #' @export
 calculate_across_sample_ratios <- function(data, metadata = NULL, validRatios = NULL, abundanceCol = "PG.Intensity"){
   

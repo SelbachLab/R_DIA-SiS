@@ -48,5 +48,4 @@ filter_frame <- filter_DIANN(data) # generate filter data frame
 silac_ratios <- calculate_SILAC_ratios(data = data, filterSet = filter_frame, useFilter = "standard", globalReference = "H", 
 globalCalculation = "all", PGcalculation = "standard") # calculate SILAC abundances
 data_across <- calculate_across_sample_ratios(data = silac_ratios)
- @import dplyr
 }
