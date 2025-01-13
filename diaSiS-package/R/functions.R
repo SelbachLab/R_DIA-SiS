@@ -2,7 +2,7 @@
 #' 
 #' Removing wrong charges and contaminants from any DIANN output file
 #' 
-#' @param file Path to report.tsv or report.parquet file
+#' @param file Path to report.tsv or report.parquet file or the already read in file
 #' @param contaminats String defining contaminant protein groups
 #' @returns DIA-NN output cleaned for contaminants and precursors with charge 1
 #' @examples
@@ -13,17 +13,25 @@
 #' @import stringr
 #' @export 
 clean_DIANN <- function(file, contaminants = "CON"){  
-  if(str_detect(file, ".tsv")){
-    read_delim(file, delim = "\t") %>%
-      filter(Precursor.Charge > 1, !str_detect(Protein.Group, contaminants)) %>%
-      # create a precursor ID that only contains sequence and charge but not SILAC state
-      mutate(Stripped.Sequence.Charge = str_remove_all(Precursor.Id, "\\(SILAC-[KR]-[LHM]\\)")) -> out
+  if(str_detect(class(file), "character")){
+    if(str_detect(file, ".tsv")){
+      read_delim(file, delim = "\t") %>%
+        filter(Precursor.Charge > 1, !str_detect(Protein.Group, contaminants)) %>%
+        # create a precursor ID that only contains sequence and charge but not SILAC state
+        mutate(Stripped.Sequence.Charge = str_remove_all(Precursor.Id, "\\(SILAC-[KR]-[LHM]\\)")) -> out
+    }else{
+      read_parquet(file) %>%
+        filter(Precursor.Charge > 1, !str_detect(Protein.Group, contaminants)) %>%
+        # create a precursor ID that only contains sequence and charge but not SILAC state
+        mutate(Stripped.Sequence.Charge = str_remove_all(Precursor.Id, "\\(SILAC-[KR]-[LHM]\\)")) -> out
+    }
   }else{
-    read_parquet(file) %>%
+    file %>% 
       filter(Precursor.Charge > 1, !str_detect(Protein.Group, contaminants)) %>%
       # create a precursor ID that only contains sequence and charge but not SILAC state
       mutate(Stripped.Sequence.Charge = str_remove_all(Precursor.Id, "\\(SILAC-[KR]-[LHM]\\)")) -> out
   }
+
   return(out)
 }
 

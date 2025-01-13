@@ -7,7 +7,7 @@
 clean_DIANN(file, contaminants = "CON")
 }
 \arguments{
-\item{file}{Path to report.tsv or report.parquet file}
+\item{file}{Path to report.tsv or report.parquet file or the already read in file}
 
 \item{contaminats}{String defining contaminant protein groups}
 }
