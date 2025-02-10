@@ -4,7 +4,7 @@
 \alias{convert_precursor_id}
 \title{Convert Precursor.Id from DIA-NN 2.0 output}
 \usage{
-convert_precursor_id(precursor_id = "Precursor.Id", channel = "Channel")
+convert_precursor_id(precursor_id, channel)
 }
 \arguments{
 \item{precursor_id}{Precursor.Id}

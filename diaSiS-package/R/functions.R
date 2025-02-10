@@ -7,22 +7,23 @@
 #' @returns Converted Precursor.Id
 #' @import stringr
 #' @export 
-convert_precursor_id <- function(precursor_id = "Precursor.Id", channel = "Channel") {
+convert_precursor_id <- function(precursor_id, channel) {
   # Define the mapping of channels to old SILAC labels
-  channel_map <- c("H" = "SILAC-H", "L" = "SILAC-L", "M" = "SILAC-M")
+  channel_map <- c("H" = "H", "L" = "L", "M" = "M")
   
-  # Extract sequence before (SILAC) and the modified amino acid
-  match <- str_match(precursor_id, "(.+)([A-Z])\\(SILAC\\)(\\d*)")
+  # Extract sequence before (SILAC), the modified amino acid ([KR]), and any extra residues
+  match <- str_match(precursor_id, "(.*)([KR])\\(SILAC\\)([A-Z]*)(\\d*)")
   
-  if(!is.na(match[1])){
+  if (!is.na(match[1])) {
     sequence <- match[2]  # Part before modified residue
-    modified_aa <- match[3]  # Modified residue
-    number <- match[4]  # Number after modification (if present)
+    modified_aa <- match[3]  # Modified residue (K or R)
+    extra_residues <- match[4]  # Any additional residues after modification (due to missed cleavage)
+    number <- match[5]  # Number after modification (if present)
     
-    # Construct old format
-    old_format <- paste0(sequence, "(", channel_map[channel], "-", modified_aa, ")", number)
+    # Construct old format: (SILAC-[KR]-[HLM])
+    old_format <- paste0(sequence, modified_aa, "(SILAC-", modified_aa, "-", channel_map[channel], ")", extra_residues, number)
     return(old_format)
-  }else{
+  } else {
     return(precursor_id) # Fallback if no match found
   }
 }
@@ -146,7 +147,7 @@ filter_DIANN <- function(data, referenceChannel = "H", numberChannels = 2, MBR =
     # Filter data based on conditions
     data %>%
       filter(
-        str_detect(Modified.Sequence, referenceChannelPattern),
+        str_detect(Precursor.Id, referenceChannelPattern),
         (!!sym(filterPGglobal)) < 0.01,
         (!!sym(filterChannel)) < filterChannelTh
       ) %>%
