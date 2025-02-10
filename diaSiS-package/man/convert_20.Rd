@@ -16,5 +16,5 @@ tibble with Precursor.Id formatted as in earlier DIA-NN versions and removed Cha
 Converting Precursor.Id and Channel columns from the new output file back to the old format so the functions run. Do not use as stand alone. convert.2.0 wraps around it
 }
 \examples{
-data <- convert.20(path/to/file/report.parquet)
+data <- convert_20(path/to/file/report.parquet)
 }
