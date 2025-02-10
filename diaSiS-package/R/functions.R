@@ -66,7 +66,7 @@ convert_20 <- function(file){
 #' @import stringr
 #' @export 
 clean_DIANN <- function(file, contaminants = "CON"){  
-  if(str_detect(class(file), "character")){
+  if(sum(str_detect(class(file), "character")) == 1){
     if(str_detect(file, ".tsv")){
       read_delim(file, delim = "\t") %>%
         filter(Precursor.Charge > 1, !str_detect(Protein.Group, contaminants)) %>%
