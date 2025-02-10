@@ -1,6 +1,6 @@
 #' Convert Precursor.Id from DIA-NN 2.0 output
 #' 
-#' Converting Precursor.Id and Channel columns from the new output file back to the old format so the functions run. Do not use as stand alone. convert.20 wraps around it
+#' Converting Precursor.Id and Channel columns from the new output file back to the old format so the functions run. Do not use as stand alone. convert_20 wraps around it
 #' 
 #' @param precursor_id Precursor.Id
 #' @param channel Channel
@@ -34,12 +34,12 @@ convert_precursor_id <- function(precursor_id = "Precursor.Id", channel = "Chann
 #' @param file file path
 #' @returns tibble with Precursor.Id formatted as in earlier DIA-NN versions and removed Channel column.
 #' @examples 
-#' data <- convert.20(path/to/file/report.parquet)
+#' data <- convert_20(path/to/file/report.parquet)
 #' @import stringr
 #' @import dplyr
 #' @import arrow
 #' @export 
-convert.20 <- function(file){
+convert_20 <- function(file){
   read_parquet(file) %>% 
     mutate(Precursor.Id = map2_chr(Precursor.Id, Channel, convert_precursor_id)) %>% 
     select(-Channel) -> out

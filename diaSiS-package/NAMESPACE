@@ -3,7 +3,7 @@
 export(calculate_SILAC_ratios)
 export(calculate_across_sample_ratios)
 export(clean_DIANN)
-export(convert.20)
+export(convert_20)
 export(convert_precursor_id)
 export(filter_DIANN)
 export(generate_pgMatrix)

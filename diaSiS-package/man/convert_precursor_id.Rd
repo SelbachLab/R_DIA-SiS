@@ -15,5 +15,5 @@ convert_precursor_id(precursor_id = "Precursor.Id", channel = "Channel")
 Converted Precursor.Id
 }
 \description{
-Converting Precursor.Id and Channel columns from the new output file back to the old format so the functions run. Do not use as stand alone. convert.20 wraps around it
+Converting Precursor.Id and Channel columns from the new output file back to the old format so the functions run. Do not use as stand alone. convert_20 wraps around it
 }
