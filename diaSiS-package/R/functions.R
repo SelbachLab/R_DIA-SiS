@@ -1,3 +1,56 @@
+#' Convert Precursor.Id from DIA-NN 2.0 output
+#' 
+#' Converting Precursor.Id and Channel columns from the new output file back to the old format so the functions run. Do not use as stand alone. convert.20 wraps around it
+#' 
+#' @param precursor_id Precursor.Id
+#' @param channel Channel
+#' @returns Converted Precursor.Id
+#' @import stringr
+#' @export 
+convert_precursor_id <- function(precursor_id = "Precursor.Id", channel = "Channel") {
+  # Define the mapping of channels to old SILAC labels
+  channel_map <- c("H" = "SILAC-H", "L" = "SILAC-L", "M" = "SILAC-M")
+  
+  # Extract sequence before (SILAC) and the modified amino acid
+  match <- str_match(precursor_id, "(.+)([A-Z])\\(SILAC\\)(\\d*)")
+  
+  if(!is.na(match[1])){
+    sequence <- match[2]  # Part before modified residue
+    modified_aa <- match[3]  # Modified residue
+    number <- match[4]  # Number after modification (if present)
+    
+    # Construct old format
+    old_format <- paste0(sequence, "(", channel_map[channel], "-", modified_aa, ")", number)
+    return(old_format)
+  }else{
+    return(precursor_id) # Fallback if no match found
+  }
+}
+
+#' Convert DIA-NN 2.0 output to format in lower versions
+#' 
+#' Converting Precursor.Id and Channel columns from the new output file back to the old format so the functions run. Do not use as stand alone. convert.2.0 wraps around it
+#' 
+#' @param file file path
+#' @returns tibble with Precursor.Id formatted as in earlier DIA-NN versions and removed Channel column.
+#' @examples 
+#' data <- convert.20(path/to/file/report.parquet)
+#' @import stringr
+#' @import dplyr
+#' @import arrow
+#' @export 
+convert.20 <- function(file){
+  read_parquet(file) %>% 
+    mutate(Precursor.Id = map2_chr(Precursor.Id, Channel, convert_precursor_id)) %>% 
+    select(-Channel) -> out
+  
+  return(out)
+}
+
+
+
+
+
 #' Clean DIA-NN output
 #' 
 #' Removing wrong charges and contaminants from any DIANN output file
